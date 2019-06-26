@@ -141,10 +141,10 @@ fileEsIn			=	'introniEsoni.gtf'								# Nome file gtf di introni ed esoni(serve
 fileEsInFilt		=	'introniEsoniFiltrati.gtf'						# Nome file gtf di introni filtrati ed esoni
 																		# (serve per BedGraph)
 
-reads				=	'reads_mapped.txt'								# Nome file dopo allineamento su introni
-readsFilt			=	'reads_mapped_filtrati.txt'						# Nome file dopo allineamento su introni filtrati
-readsEsIn			=	'reads_mapped_introniEsoni.txt'					# Nome file dopo allineamento su introni ed esoni
-readsEsInFilt		=	'reads_mapped_introniEsoniFiltrati.txt'			# Nome file dopo allineamento su introni filtrati
+reads				=	'reads_mapped.txt'								# Nome file dopo mappatura reads su introni
+readsFilt			=	'reads_mapped_filtrati.txt'						# Nome file dopo mappatura reads su introni filtrati
+readsEsIn			=	'reads_mapped_introniEsoni.txt'					# Nome file dopo mappatura reads su introni ed esoni
+readsEsInFilt		=	'reads_mapped_introniEsoniFiltrati.txt'			# Nome file dopo mappatura reads su introni filtrati
 																		# ed esoni
 
 output				=	'output.txt'									# Nome file di output collassato su introni
@@ -156,7 +156,8 @@ fileBedGraphFilt	=	'_filtrati' 									# il nome corrisponde al cromosoma (aggi
 
 
 stringaGTF 			= 	'%s\t%s\t%s\tintron_number "%d"\t%s\t%s\n'		# Formato della stringa da inserire nel file '.gtf'
-coverageBed			=	'bedtools coverage -abam %s -b %s > %s'			# Comando di subprocess da richiamare per allineare
+coverageBed			=	'bedtools coverage -abam %s -b %s > %s'			# Comando di subprocess da richiamare per mappare le
+																		# reads sul file fornito come secondo parametro (.gtf)
 
 #----------------------------------------------------------------------
 
@@ -207,7 +208,7 @@ def stampaGTF(dictTranscript, dictGenes, dictInput, fileOut, geneNames={}):
 			files[gene] = open(str(cartella % cod + fileOut), 'w')				# ..altrimenti si apre nella cartella il file in write
 		
 	fileGtf = open(str(fileOut), 'w')											# Si crea comunque il file '.gtf' totale per tutti i
-																				# geni (da usare per allineare)
+																				# geni (da usare per mappare le reads)
 
 	for transcriptID in dictInput:
 		geneID 			= dictTranscript[transcriptID][idx_geneID]
@@ -305,30 +306,30 @@ def filtraIntroni(dictTranscript, dictGenes, dictEsoni, dictIntroni):
 							ends_esoni 	 = dictEsoni[innerTranscriptID][idx_ends][::-1]						      
 							
 						
-						start_introne_precedente = 0					# Varibili che servono per quando un esone..
-						end_introne_precedente   = 0					# ..e' completamente compreso nell'introne
+						start_introne_precedente = 0					      	# Varibili che servono per quando un esone..
+						end_introne_precedente   = 0						  	# ..e' completamente compreso nell'introne
 
 						#	Casi di interazione esone-introne analizzati:
 						# 
-						#	Caso 1: esone			     |------|
-						# 		 	introne  |---------|
+						#	Caso 1: esone				    |---------------|
+						# 		 	introne |--------------|
 						#
 						#
-						#	Caso 2: esone			|------|
-						#			introne		|-------------|
+						#	Caso 2: esone			|---------------|
+						#			introne		|------------------------|
 						#
 						#
-						# 	Caso 3: esone	 |-------|
-						#			introne		|---------|
+						# 	Caso 3: esone			|---------------|
+						#			introne				|----------------|
 						#
 						#
-						# 	Caso 4: esone			|----------|
-						#			introne		|--------|
+						# 	Caso 4: esone			|---------------|
+						#			introne		|-----------|
 						#
 						#
-						# 	Caso 5: esone 		|--------------|
-						#			introne		   |-------|
-						#
+						# 	Caso 5: esone 			|---------------------|
+						#			introne					|-------|
+
 						# Legenda parametri commenti:
 						#
 						# 	fi = fine introne 
@@ -378,8 +379,8 @@ def filtraIntroni(dictTranscript, dictGenes, dictEsoni, dictIntroni):
 								flagSplitted = True
 								numeroIntroni += 1
 								starts_introni.append(start_introne_precedente)	# Si appende alla lista degli introni da analizzare..
-								ends_introni.append(end_introne_precedente)		# ..la parte rimasta dell'introne
-								start_introne_precedente = 0				
+								ends_introni.append(end_introne_precedente)		# ..la parte precedente dell'introne (quella successiva..
+								start_introne_precedente = 0					# ..continua ad essere elaborata 
 								end_introne_precedente   = 0
 
 	
@@ -408,37 +409,19 @@ def filtraIntroni(dictTranscript, dictGenes, dictEsoni, dictIntroni):
 #  --------------------------------------------------------------------
 
 def estraiReads(fileInput, fileBam, fileOut, geneNames={}):
-	""" Controlla l'esecuzione e la chiamata del tool di allineamento.
-
+	""" Esegue la chiamata del tool di mappatura delle reads su file gtt:
+		tool Coverage di bamtools
+		
+	A seconda dei file che vengono passati come parametri, la funzione
+	esegue la mappatura su regioni introniche filtrate, non filtrate e
+	sull'intera sequenza del gene.
+	
 	Argomenti:
 		fileInput		:		nome del file gtf in in input
 		fileBam			:		file di allineamento
-		fileOut			:		file di output con le reads
+		fileOut			:		file di output con le reads mappate
 	"""
-	callBedtools(fileInput, fileBam, fileOut)
 
-	#if not geneNames:
-		#callBedtools(fileInput, fileBam, fileOut)
-	#else:
-		#for gene in geneNames.values():
-			#callBedtools(cartella % gene + fileInput,
-						 #fileBam,
-						 #cartella % gene + fileOut)
-
-#  --------------------------------------------------------------------
-
-def callBedtools(fileInput, fileBam, fileOut):
-	"""	Richiama come sottoprocesso il tool coverage di bamtools.
-
-	A seconda dei file che vengono passati come parametri, la funzione
-	eseguie allineamento su regioni introniche filtrate, non filtrate e
-	sull'intera sequenza del gene.
-
-	Argomenti:
-		fileInput		:		file che contiene le regioni da allineare
-		fileBam			:		file di allineamento
-		fileOut			:		file di output con le reads
-	"""
 	subprocess.call(coverageBed	% (fileBam, fileInput, fileOut), shell=True)
 
 #  --------------------------------------------------------------------
@@ -447,12 +430,12 @@ def caricaReads(fileInput):
 	"""	Crea il dizionario delle reads dal file di input.
 
 	Argomenti:
-		fileInput		:		file di allineamento
+		fileInput		:		file di mappatura delle reads
 
 	Ritorna:
 		dictReads		:		dizionario delle reads
 	"""
-	# Nel file di allineamento di tipo '.gtf' le reads sono in
+	# Nel file di mappatura reads di tipo '.gtf' le reads sono in
 	# posizione idx_reads
 	idx_start	= 1
 	idx_end		= 2
@@ -492,8 +475,7 @@ def collapsed(dictTranscript, dictGenes, dictIntroni, dictGeneChr, fileInput, fi
 	dictReads  = caricaReads(fileInput)
 
 	if not dictReads :
-		print 'Non sono state trovate regioni introniche',
-		print 'con reads mappanti per i geni inseriti.'
+		print 'Non sono state trovate reads mappanti per i geni inseriti.'
 		return False
 
 	#   Creazione della struttura dati di output {dictOutput}
@@ -508,7 +490,7 @@ def collapsed(dictTranscript, dictGenes, dictIntroni, dictGeneChr, fileInput, fi
 	#				}
 	#
 	# Accumulo per ogni introne dei trascritti dove esso e' presente.
-	
+	#
 	for transcriptID in dictIntroni:									# Per ogni transcript_id del file di annotazione..
 																		# ..se ha introni..
 		transcriptName = dictTranscript[transcriptID][0]				# ..si risale al suo gene_id (gene_name) e.. 
@@ -528,6 +510,7 @@ def collapsed(dictTranscript, dictGenes, dictIntroni, dictGeneChr, fileInput, fi
 				# dictOutput nella posizione corrispondente al 
 				# gene_name e cromosoma (relativi al transcript_id 
 				# al quale l'intervallo stesso appartiene)
+				#
 				if not dictOutput.has_key(key_geneChr):			
 					dictOutput[key_geneChr] = {}					
 					dictOutput[key_geneChr][key_estremi] = [transcriptName]
@@ -554,10 +537,10 @@ def stampaOutput(dictGeneChr, dictReads, dictOutput, fileOut):
 	gene_name(chr'':start_gene-end_gene)	[intron#(start_intron-end_intron):[transcripts]:#reads]
 	
 	Argomenti:
-		dictGeneChr 	:	dizionario coordinate Geni per Cromosomi
-		dictReads		:	dizionario delle reads
-		dictOutput		:	dizionario con struttura dati finale 
-		fileOut			:	file di output finale
+		dictGeneChr, 		: 		dizionario coordinate Geni per Cromosomi
+		dictReads,			:		dizionario delle reads
+		dictOutput			:		dizionario con struttura dati finale 
+		fileOut				:		file di output finale
 	"""
 	GeneChrF = '%s(%s:%s)'												# Formato prima parte della riga di output(gene e chr)
 	IntroneF = '\tintron%d(%s-%s):%s:%s'								# Formato seconda parte della riga di output..
@@ -570,7 +553,8 @@ def stampaOutput(dictGeneChr, dictReads, dictOutput, fileOut):
 							  '-'.join(dictGeneChr[geneChr]))
 		
 		output.write(strGene)											# Si scrive la prima parte della riga relativa..
-																		# ..al gene e cromosoma correnti															
+																		# ..al gene e cromosoma correnti
+																				
 		intronNumber = 1												# Contatore per gli introni appartenenti al gene..
 																		# ..e al cromosoma correnti
 		for intron in sorted(dictOutput[geneChr].keys()):
@@ -590,7 +574,7 @@ def stampaOutput(dictGeneChr, dictReads, dictOutput, fileOut):
 	
 	output.close()
 
-# ---------------------------------------------------------------------
+# -------------------------------------------------------------------------
 
 def progettoA(fileAnn, fileBam, scelta):
 	"""	Esegue il progetto A.
@@ -647,8 +631,8 @@ def progettoA(fileAnn, fileBam, scelta):
 	stampaGTF(dictTranscript, dictGenes, dictI, pA + fileI)
 	print 'E\' stato creato il file %s.\n' % (pA + fileI)
 
-	""" Esecuzione dell'allineamento """
-	print 'Allineamento in corso...'
+	""" Esecuzione della mappatura reads"""
+	print 'Mappatura delle reads in corso...'
 	estraiReads(pA + fileI, fileBam, pA + readsI)
 	print 'E\' stato creato il file %s.\n' % (pA + readsI)
 
@@ -723,19 +707,6 @@ def progettoB(fileAnn, fileBam, scelta):
 	if not geneNames:
 		print 'Attenzione: nessuno dei geni inseriti presenta',
 		print 'regioni introniche.'
-		
-		# Pulizia memoria
-		#----------------------
-		del dictTranscript
-		del dictGenes
-		del dictEsoni
-		del dictIntroni
-		del dictIntroniFiltrati
-		del dictEsIn
-		del dictGeneChr
-		del geneNames 
-		del dictReadsEsIn
-		#----------------------
 		return None
 
 
@@ -761,43 +732,12 @@ def progettoB(fileAnn, fileBam, scelta):
 		outputI	= outputFilt 
 
 
-
-	#""" Procedimento ver. 1:
-			#- si stampano N file GTF, uno per ogni gene
-			#- si richiama bedtools per ogni file GTF ottenendo N files
-			  #di mappatura delle reads
-			#- si uniscono i file di mappatura delle reads in un unico
-			  #file
-			#- si stampa il file di output finale
-	#"""
-	#""" Stampa del file '.gtf' """
-	#print 'Stampa dei file \'.gtf\' per ogni gene in corso...'
-	#stampaGTF(dictTranscript, dictGenes, dictI, pB + fileI, geneNames)
-	#print 'Sono stati creati i file %s' % (pB + fileI),
-	#print 'in ciascuna cartella dei geni.\n' 
-
-	
-	#""" Esecuzione dell'allineamento """
-	#print 'Allineamento in corso...'
-	#estraiReads(pB + fileI, fileBam, pB + readsI, geneNames)
-	#print 'E\' stato creato il file %s.\n' % (pB + readsI)
-
-	#""" Unione dei file delle reads di tutti i geni """
-	#pbiB.unisciFile(pB + readsI, geneNames, pB + readsI)
-
-	#""" Creazione del file di output """
-	#print 'Creazione del file di output in corso...'
-	#collapsed(dictTranscript, dictGenes, dictI, dictGeneChr, \
-	#		   pB + readsI, pB + outputI)
-	#print 'E\' stato creato il file %s.\n' % (pB + outputI)
-
-
-	""" Procedimento ver. 2:
-					- si stampano N file GTF, uno per ogni gene, e
-					  contemporaneamente se se ne stampa uno completo 
-					  con tutti i geni
-					- si richiama bedtools per quest'unico file
-					- si stampa il file di output 
+	""" Procedimento:
+			- si stampano N file GTF, uno per ogni gene, e
+			  contemporaneamente se se ne stampa uno completo con tutti
+			  i geni
+			- si richiama bedtools per quest'unico file
+			- si stampa il file di output 
 	"""
 	""" Stampa del file '.gtf' """
 	print 'Stampa dei file \'.gtf\' per ogni gene in corso...'
@@ -806,33 +746,16 @@ def progettoB(fileAnn, fileBam, scelta):
 	print 'in ciascuna cartella dei geni.\n'
 
 
-	""" Esecuzione dell'allineamento """
-	print 'Allineamento in corso...'
+	""" Esecuzione della mappatura reads """
+	print 'Mappatura delle reads in corso...'
 	estraiReads(pB + fileI, fileBam, pB + readsI)
 	print 'E\' stato creato il file %s.\n' % (pB + readsI)
 
 
 	""" Creazione del file di output """
 	print 'Creazione del file di output in corso...'
-	if not collapsed(dictTranscript, dictGenes, dictI, dictGeneChr, \
-					 pB + readsI, pB + outputI):
-		print 'I geni inseriti non presentano il problema di intron',
-		print 'retention'
-		
-		# Pulizia memoria
-		#----------------------
-		del dictTranscript
-		del dictGenes
-		del dictEsoni
-		del dictIntroni
-		del dictIntroniFiltrati
-		del dictEsIn
-		del dictGeneChr
-		del geneNames 
-		del dictReadsEsIn
-		#----------------------
-		return None
-		
+	collapsed(dictTranscript, dictGenes, dictI, dictGeneChr, \
+			  pB + readsI, pB + outputI)
 	print 'E\' stato creato il file %s.\n' % (pB + outputI)
 
 
@@ -876,8 +799,8 @@ def progettoB(fileAnn, fileBam, scelta):
 	print 'E\' stato creato il file %s.\n' % (pB + fileEsInI)
 
 
-	""" Esecuzione dell'allineamento esoni + introni """
-	print 'Allineamento delle regioni introniche ed esoniche in corso...'
+	""" Esecuzione della mappatura reads esoni + introni """
+	print 'Mappatura delle reads su regioni introniche ed esoniche in corso...'
 	estraiReads(pB + fileEsInI, fileBam, pB + readsEsInI)
 	print 'E\' stato creato il file %s.\n' % (pB + readsEsInI)
 
@@ -907,18 +830,14 @@ def progettoB(fileAnn, fileBam, scelta):
 	#------------------------
 
 
-
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
 # Menu iniziale nel quale scegli il progetto
-# Valori di ritorno:
-# 	a 			-> 		progetto A
-#	b 			-> 		progetto B
 #
 # L'utenete puo' scegliere progetto A per ottenere il file di output 
 # per tutti gli introni derivanti dal file di annotazione
 # oppure il progetto B se vuole analizzare solo determinati geni
-# e/o ottenere i file in formato BedGraph
+# e/o ottenere i file in formato BedGraph.
 #
 def menuProgetto():
 	while True:
@@ -938,12 +857,6 @@ def menuProgetto():
 
 # ---------------------------------------------------------------------
 
-# Menu per il progetto A
-# Valori di ritorno:
-# 	num_scelta	-> 		opzione scelta
-#	0 			-> 		cambio progetto
-# 	-1 			-> 		uscire
-#
 def menuA():
 	print """Azioni per il progetto A:
 
@@ -1011,7 +924,7 @@ def inserisciFileDiAll():
 		else:
 			return fileAll
 
-# ---------------------------------------------------------------------
+# -------------------------------------------------------------------------
 
 def main():
 
